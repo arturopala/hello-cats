@@ -1,4 +1,5 @@
 import TreeMonad.{Branch, Leaf, Tree, TreeMonad}
+import cats.Monad
 import cats.kernel.Eq
 import cats.laws.discipline.MonadTests
 import org.scalacheck.{Arbitrary, Gen}
@@ -16,30 +17,47 @@ class TreeMonadSpec extends FunSuite with Matchers with PropertyChecks with Disc
   import cats.instances.int._
   import cats.instances.tuple._
 
+
   @tailrec
   private def tree[A](list: List[A], t: Tree[A]): Tree[A] = list match {
-    case x :: Nil => Leaf(x)
-    case x :: xs => tree(xs, Branch(Leaf(x), t))
+    case Nil => t
+    case _ :: xs => tree(xs, Branch(t, t))
   }
 
   implicit def arbitraryTree[A](implicit a: Arbitrary[A]): Arbitrary[Tree[A]] =
-    Arbitrary(Gen.nonEmptyListOf(a.arbitrary).map(list => tree(list, Leaf(list.head))))
+    Arbitrary(Gen.nonEmptyListOf(a.arbitrary).map {
+      list =>
+        val t = tree(list.tail, Leaf(list.head))
+        println(s"tree depth = ${t.depth}")
+        t
+    })
 
   implicit def eqTree[A](implicit t: Eq[A]): Eq[Tree[A]] = new Eq[Tree[A]] {
-    def eqv(x: Tree[A], y: Tree[A]): Boolean = x match {
-      case Leaf(a1) => y match {
-        case Leaf(a2) if a1 == a2 => true
-        case _ => false
-      }
-      case Branch(l1, r1) => y match {
-        case Branch(l2, r2) if eqv(l1, l2) && eqv(r1, r2) => true
-        case _ => false
-      }
+    def eqv(x: Tree[A], y: Tree[A]): Boolean = {
+      x == y
     }
   }
 
-  implicit val monad = new TreeMonad[Int]
+  implicit val monad = new TreeMonad
+
+  test("flatMap stack safety") {
+    val gen = Gen.nonEmptyListOf(Gen.const(1)).map(list => tree(list, Leaf(list.head)))
+    forAll(gen) { (tree: Tree[Int]) =>
+      println(s"tree depth = ${tree.depth}")
+      Monad[Tree].flatMap(tree)(x => Leaf(x + 1))
+      println("done")
+    }
+  }
+
+  test("stack overflow") {
+    val t = new TreeMonad()
+    def b(a: Int): Tree[Either[Int,Int]] = {
+      Branch(Leaf(Left(a)), Leaf(Right(1)))
+    }
+    t.tailRecM(1)(a => Branch(b(a), b(a)))
+  }
 
   checkAll("TreeMonad", MonadTests[Tree].monad[Int, Int, Int])
+
 
 }
