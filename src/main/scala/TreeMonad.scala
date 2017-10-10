@@ -1,3 +1,6 @@
+import java.util
+
+import TreeMonad.Tree
 import cats.Monad
 
 import scala.annotation.tailrec
@@ -12,7 +15,8 @@ object TreeMonad {
   final case class Branch[A](left: Tree[A], right: Tree[A]) extends Tree[A] {
     override val depth = 1 + Math.max(left.depth, right.depth)
 
-    override def toString: String = s"Branch[${left.depth},${right.depth}]"
+    override def toString: String = if(depth<=5) s"Branch($left, $right)"
+                                    else s"Branch[${left.depth},${right.depth}]"
   }
 
   final case class Leaf[A](value: A) extends Tree[A] {
@@ -30,7 +34,34 @@ object TreeMonad {
 
     final override def tailRecM[A, B](a: A)(f: (A) => Tree[Either[A, B]]): Tree[B] = {
 
-      ???
+      sealed trait Compose extends Function[Option[Tree[B]], Compose]
+      case class GetResult(var tree: Option[Tree[B]] = None) extends Compose {
+        def apply(o: Option[Tree[B]]): Compose = { tree = o; this}
+      }
+      case class ComposeBranch(c: Compose) extends Compose {
+        def apply(o1: Option[Tree[B]]): Compose = o1 match {
+          case None => c
+          case Some(left) => new Compose {
+            def apply(o2: Option[Tree[B]]): Compose = o2 match {
+              case None => c(Some(left))
+              case Some(right) => c(Some(Branch(left, right)))
+            }
+          }
+        }
+      }
+
+      @tailrec
+      def m(stack: List[Tree[Either[A, B]]], c: Compose): Tree[B] = stack match {
+        case Nil => c match {
+          case GetResult(Some(tree)) => tree
+          case _ => throw new IllegalStateException(s"expected tree result but was $c")
+        }
+        case Leaf(Right(x)) :: xs => m(xs, c(Some(Leaf(x))))
+        case Leaf(Left(y)) :: xs => m(f(y) :: xs, c)
+        case Branch(l,r) :: xs => m(l :: r :: xs, ComposeBranch(c))
+      }
+
+      m(List(f(a)), GetResult())
     }
   }
 
