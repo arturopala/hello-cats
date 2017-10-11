@@ -38,40 +38,60 @@ class TreeMonadSpec extends FunSuite with Matchers with PropertyChecks with Disc
     }
   }
 
-  implicit val monad = new TreeMonad
+  implicit val tm = new TreeMonad
+
+  test("simple flatMap case #1") {
+    val tree = Leaf(1)
+    def f(a: Int): Tree[Int] = Leaf(a+1)
+    tm.flatMap(tree)(f) shouldBe Leaf(2)
+  }
+
+  test("simple flatMap case #2") {
+    val tree = Branch(Leaf(1),Leaf(2))
+    def f(a: Int): Tree[Int] = Leaf(a+1)
+    tm.flatMap(tree)(f) shouldBe Branch(Leaf(2),Leaf(3))
+  }
+
+  test("simple flatMap case #3") {
+    val tree = Leaf(1)
+    def f(a: Int): Tree[Int] = Branch(Leaf(a+1),Leaf(a+2))
+    tm.flatMap(tree)(f) shouldBe Branch(Leaf(2),Leaf(3))
+  }
+
+  test("simple flatMap case #4") {
+    val tree = Branch(Leaf(1),Leaf(2))
+    def f(a: Int): Tree[Int] = Branch(Leaf(a+1),Leaf(a+2))
+    tm.flatMap(tree)(f) shouldBe Branch(Branch(Leaf(2),Leaf(3)),Branch(Leaf(3),Leaf(4)))
+  }
 
   test("simple tailRecM case #1") {
-    val t = new TreeMonad()
     def f(a: Int): Tree[Either[Int,Int]] = {
       Branch(Branch(Leaf(Right(a)), Leaf(Right(a+1))), Leaf(Right(a+2)))
     }
-    t.tailRecM(3)(f) shouldBe Branch(Branch(Leaf(3), Leaf(4)), Leaf(5))
+    tm.tailRecM(3)(f) shouldBe Branch(Branch(Leaf(3), Leaf(4)), Leaf(5))
   }
 
   test("simple tailRecM case #2") {
-    val t = new TreeMonad()
     def f(a: Int): Tree[Either[Int,Int]] = {
       Branch(Branch(Leaf(Right(a)), Leaf(Right(a+1))), Branch(Leaf(Right(a+3)), Leaf(Right(a+2))))
     }
-    t.tailRecM(3)(f) shouldBe Branch(Branch(Leaf(3), Leaf(4)), Branch(Leaf(6), Leaf(5)))
+    tm.tailRecM(3)(f) shouldBe Branch(Branch(Leaf(3), Leaf(4)), Branch(Leaf(6), Leaf(5)))
   }
 
   test("simple tailRecM case #3") {
-    val t = new TreeMonad()
     def f(a: Int): Tree[Either[Int,Int]] = {
       if(a <= 5) Branch(Leaf(Left(a+1)), Leaf(Right(a)))
       else Branch(Leaf(Right(a)), Leaf(Right(a+1)))
     }
-    t.tailRecM(3)(f) shouldBe Branch(Branch(Branch(Branch(Leaf(6), Leaf(7)), Leaf(5)), Leaf(4)), Leaf(3))
+    tm.tailRecM(3)(f) shouldBe Branch(Branch(Branch(Branch(Leaf(6), Leaf(7)), Leaf(5)), Leaf(4)), Leaf(3))
   }
 
   test("simple tailRecM case #4") {
-    val t = new TreeMonad()
     def f(a: Int): Tree[Either[Int,Int]] = {
       if(a <= 5) Branch(Leaf(Left(a+1)), Leaf(Left(a+2)))
       else Branch(Leaf(Right(a)), Leaf(Right(a+1)))
     }
-    t.tailRecM(3)(f) shouldBe Branch(
+    tm.tailRecM(3)(f) shouldBe Branch(
       Branch(
         Branch(
           Branch(Leaf(6), Leaf(7)),
@@ -96,11 +116,10 @@ class TreeMonadSpec extends FunSuite with Matchers with PropertyChecks with Disc
   }
 
   test("stack overflow") {
-    val t = new TreeMonad()
     def b(a: Int): Tree[Either[Int,Int]] = {
       Branch(Leaf(Left(a)), Leaf(Right(1)))
     }
-    t.tailRecM(1)(a => Branch(b(a), b(a)))
+    tm.tailRecM(1)(a => Branch(b(a), b(a)))
   }
 
   checkAll("TreeMonad", MonadTests[Tree].monad[Int, Int, Int])
