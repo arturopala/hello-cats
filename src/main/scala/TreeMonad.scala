@@ -1,6 +1,3 @@
-import java.util
-
-import TreeMonad.Tree
 import cats.Monad
 
 import scala.annotation.tailrec
@@ -13,8 +10,7 @@ object TreeMonad {
   }
 
   final case class Branch[A](left: Tree[A], right: Tree[A]) extends Tree[A] {
-    override val depth = 1 + Math.max(left.depth, right.depth)
-
+    override val depth: Int = 1 + Math.max(left.depth, right.depth)
     override def toString: String = if(depth<=5) s"Branch($left, $right)"
                                     else s"Branch[${left.depth},${right.depth}]"
   }
@@ -54,16 +50,18 @@ object TreeMonad {
       m(List(f(a)), Result())
     }
 
-    sealed trait Builder[A] extends Function[Tree[A], Builder[A]]
+    private sealed trait Builder[A] extends Function[Tree[A], Builder[A]]
 
-    case class Result[A](var treeOpt: Option[Tree[A]] = None) extends Builder[A] {
-      def apply(tree: Tree[A]): Builder[A] = { treeOpt = Some(tree); this }
+    private case class Result[A](var treeOpt: Option[Tree[A]] = None) extends Builder[A] {
+      final def apply(tree: Tree[A]): Builder[A] = { treeOpt = Some(tree); this }
     }
 
-    case class ComposeBranch[A](b: Builder[A]) extends Builder[A] {
-      def apply(left: Tree[A]): Builder[A] = new Builder[A] {
-        def apply(right: Tree[A]): Builder[A] = b(Branch(left, right))
-      }
+    private case class RightLeg[A](left: Tree[A], b: Builder[A]) extends Builder[A] {
+        final def apply(right: Tree[A]): Builder[A] = b(Branch(left, right))
+    }
+
+    private case class ComposeBranch[A](b: Builder[A]) extends Builder[A] {
+      final def apply(left: Tree[A]): Builder[A] = RightLeg(left,b)
     }
 
   }
