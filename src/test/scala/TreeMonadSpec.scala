@@ -13,7 +13,7 @@ import scala.annotation.tailrec
 
 class TreeMonadSpec extends FunSuite with Matchers with PropertyChecks with Discipline with TreeGen {
 
-  implicit override val generatorDrivenConfig: PropertyCheckConfig =
+  implicit override val generatorDrivenConfig =
     PropertyCheckConfig(minSize = 0, maxSize = 1E2.toInt, minSuccessful = 10)
 
   import cats.instances.int._
@@ -125,7 +125,7 @@ class TreeMonadSpec extends FunSuite with Matchers with PropertyChecks with Disc
 
   test("stack overflow") {
     def b(a: Int): Tree[Either[Int,Int]] = {
-      if(a<1000000) Branch(Leaf(Left(a+1)), Leaf(Right(a)))
+      if(a<10000) Branch(Leaf(Left(a+1)), Leaf(Right(a)))
       else Leaf(Right(a))
     }
     val tm1 = tm.tailRecM(1)(a => Branch(b(a), b(a)))
